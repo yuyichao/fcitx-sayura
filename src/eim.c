@@ -74,6 +74,8 @@ static const UT_icd ucs4_icd = {
     NULL
 };
 
+#define ucs4_array_index(a, i) (*(uint32_t*)utarray_eltptr(a, i))
+
 
 typedef struct {
     uint32_t character;
@@ -225,17 +227,88 @@ FcitxSayuraFindConsonantByKey(FcitxKeySym sym)
     return -1;
 }
 
+static int
+FcitxSayuraFindConsonant(uint32_t c)
+{
+    int i;
+    for (i = 0;consonants[i].character;i++) {
+        if (consonants[i].character == c||
+            consonants[i].mahaprana == c||
+            consonants[i].sagngnaka == c)
+            return i;
+    }
+    return -1;
+}
+
 static INPUT_RETURN_VALUE
 FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
 {
     const FcitxSayuraConsonant consonant = consonants[c];
+    int l1 = 0;
+    uint32_t val = 0;
 
     if (utarray_len(&sayura->buff) == 0) {
         utarray_push_back(&sayura->buff, &consonant.character);
         return IRV_DISPLAY_CANDWORDS;
     }
 
-    return IRV_TO_PROCESS;
+    l1 = FcitxSayuraFindConsonant(ucs4_array_index(&sayura->buff, 0));
+
+    if (l1 >= 0) {
+        switch (consonant.key) {
+        case FcitxKey_w:
+            val = 0x0dca;
+            utarray_push_back(&sayura->buff, &val);
+            return IRV_DISPLAY_CANDWORDS;
+        case FcitxKey_W:
+            val = 0x0dca;
+            utarray_push_back(&sayura->buff, &val);
+            /* TODO: commit preedit */
+            val = 0x200d;
+            utarray_push_back(&sayura->buff, &val);
+            return IRV_DISPLAY_CANDWORDS;
+        case FcitxKey_H:
+            if (!consonants[l1].mahaprana)
+                break;
+            if (!utarray_len(&sayura->buff))
+                return IRV_DO_NOTHING;
+            utarray_pop_back(&sayura->buff);
+            utarray_push_back(&sayura->buff, &consonants[l1].mahaprana);
+            return IRV_DISPLAY_CANDWORDS;
+        case FcitxKey_G:
+            if (!consonants[l1].sagngnaka)
+                break;
+            if (!utarray_len(&sayura->buff))
+                return IRV_DO_NOTHING;
+            utarray_pop_back(&sayura->buff);
+            utarray_push_back(&sayura->buff, &consonants[l1].sagngnaka);
+            return IRV_DISPLAY_CANDWORDS;
+        case FcitxKey_R:
+            val = 0x0dca;
+            utarray_push_back(&sayura->buff, &val);
+            val = 0x200d;
+            utarray_push_back(&sayura->buff, &val);
+            /* TODO: commit preedit */
+            val = 0x0dbb;
+            utarray_push_back(&sayura->buff, &val);
+            return IRV_DISPLAY_CANDWORDS;
+        case FcitxKey_Y:
+            val = 0x0dca;
+            utarray_push_back(&sayura->buff, &val);
+            val = 0x200d;
+            utarray_push_back(&sayura->buff, &val);
+            /* TODO: commit preedit */
+            val = 0x0dba;
+            utarray_push_back(&sayura->buff, &val);
+            return IRV_DISPLAY_CANDWORDS;
+        default:
+            break;
+        }
+    }
+
+    /* TODO: commit preedit */
+    utarray_push_back(&sayura->buff, &consonant.character);
+    return IRV_DISPLAY_CANDWORDS;
 }
 
 static INPUT_RETURN_VALUE
