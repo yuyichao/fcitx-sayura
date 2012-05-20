@@ -21,6 +21,7 @@
 #ifndef EIM_H
 #define EIM_H
 
+#include <iconv.h>
 #include <fcitx/ime.h>
 #include <fcitx/instance.h>
 #include <fcitx/candidate.h>
@@ -30,6 +31,7 @@
 typedef struct _FcitxSayura {
     FcitxInstance* owner;
     UT_array *buff;
+    iconv_t cd;
 } FcitxSayura;
 
 #endif

@@ -171,6 +171,9 @@ FcitxSayuraCreate(FcitxInstance *instance)
 
     sayura->owner = instance;
     utarray_new(sayura->buff, &ucs4_icd);
+    sayura->cd = iconv_open("UTF-8", "UTF-32");
+
+    /* A structure larger than 63byte is copied, good job. ~~ */
     FcitxInstanceRegisterIMv2(instance, sayura,
                               "sayura", _("Sinhala Input Method"), "sayura",
                               sayura_iface, 1, "si");
@@ -182,6 +185,7 @@ FcitxSayuraDestroy(void *arg)
 {
     FcitxSayura *sayura = (FcitxSayura*)arg;
     __pfunc__();
+    iconv_close(sayura->cd);
     utarray_free(sayura->buff);
     free(arg);
 }
@@ -198,7 +202,37 @@ FcitxSayuraInit(void *arg)
 static INPUT_RETURN_VALUE
 FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
 {
+    FcitxSayura *sayura = (FcitxSayura*)arg;
+    int c;
     __pfunc__();
+
+    if (FcitxHotkeyIsHotKey(sym, state, FCITX_ESCAPE))
+        return IRV_FLAG_RESET_INPUT;
+
+    if (FcitxHotkeyIsHotKey(sym, state, FCITX_BACKSPACE)) {
+        if (utarray_len(sayura->buff) > 0) {
+            /* TODO: Remove the last charactor. */
+            return IRV_DISPLAY_CANDWORDS;
+        }
+        return IRV_FLAG_BLOCK_FOLLOWING_PROCESS;
+    }
+
+    if (FcitxHotkeyIsHotKey(sym, state, FCITX_BACKSPACE)) {
+        if (utarray_len(sayura->buff) > 0) {
+            /* TODO: Remove the last charactor. */
+            return IRV_DISPLAY_CANDWORDS;
+        }
+        return IRV_FLAG_BLOCK_FOLLOWING_PROCESS;
+    }
+
+    if (FcitxHotkeyIsHotKey(sym, state, FCITX_SPACE)) {
+        if (utarray_len(sayura->buff) > 0) {
+            /* TODO: Commit preedit and return a correct value. */
+            return IRV_TO_PROCESS;
+        }
+        return IRV_TO_PROCESS;
+    }
+
     return IRV_TO_PROCESS;
 }
 

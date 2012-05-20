@@ -7,6 +7,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 # FIND_PACKAGE(Gettext REQUIRED)
 find_package(Fcitx REQUIRED)
 find_package(Gettext REQUIRED)
+find_package(Libiconv REQUIRED)
 
 # uninstall target
 configure_file(
