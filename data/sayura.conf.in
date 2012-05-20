@@ -1,0 +1,7 @@
+[InputMethod]
+UniqueName=sayura
+_Name=Sinhala Input Method
+IconName=sayura
+Priority=1
+LangCode=si
+Parent=fcitx-sayura

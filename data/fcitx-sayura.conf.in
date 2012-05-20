@@ -1,0 +1,9 @@
+[Addon]
+Name=fcitx-sayura
+_GeneralName=Sayura
+_Comment=Sayura Input Method For Fcitx
+Category=InputMethod
+Enabled=True
+Library=fcitx-sayura.so
+Type=SharedLibrary
+IMRegisterMethod=ConfigFile
