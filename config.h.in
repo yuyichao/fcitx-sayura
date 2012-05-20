@@ -1,1 +1,13 @@
+#ifndef ___CONFIG_H___
+#define ___CONFIG_H___
+
 #define LOCALEDIR "@LOCALEDIR@"
+
+#cmakedefine LIBICONV_SECOND_ARGUMENT_IS_CONST
+#ifdef LIBICONV_SECOND_ARGUMENT_IS_CONST
+typedef const char* IconvStr;
+#else
+typedef char* IconvStr;
+#endif
+
+#endif /* __CONFIG_H__ */

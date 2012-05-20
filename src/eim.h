@@ -28,10 +28,15 @@
 
 #define _(x) dgettext("fcitx-sayura", x)
 
+#define FCITX_SAYURA_HACK_FORWARD (1 << 0)
+
 typedef struct _FcitxSayura {
     FcitxInstance* owner;
     UT_array buff;
     iconv_t cd;
+    /* A hack to pass information between do_input and get_cand_words,
+     * in order to get a consistent behavior with ibus version. */
+    int hack;
 } FcitxSayura;
 
 #endif

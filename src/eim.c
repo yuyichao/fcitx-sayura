@@ -153,7 +153,7 @@ static const FcitxSayuraVowel vowels[] = {
 
 #ifdef FCITX_SAYURA_DEBUG
 #  define eprintf(format, args...)                      \
-    fprintf(stderr, "\e[35m\e[1m"format"\e[0m", args)
+    fprintf(stderr, "\e[35m\e[1m"format"\e[0m", ##args)
 #else
 #  define eprintf(format, args...)
 #endif
@@ -170,6 +170,7 @@ FcitxSayuraCreate(FcitxInstance *instance)
     __pfunc__();
     bindtextdomain("fcitx-sayura", LOCALEDIR);
 
+    sayura->hack = 0;
     sayura->owner = instance;
     utarray_init(&sayura->buff, &ucs4_icd);
     sayura->cd = iconv_open("UTF-8", "UTF-32");
@@ -212,8 +213,43 @@ FcitxSayuraInit(void *arg)
     __pfunc__();
     if (!arg)
         return false;
+    sayura->hack = 0;
     FcitxInstanceSetContext(sayura->owner, CONTEXT_IM_KEYBOARD_LAYOUT, "us");
     return true;
+}
+
+static char*
+FcitxSayuraBufferToUTF8(FcitxSayura *sayura)
+{
+    IconvStr inbuf = utarray_front(&sayura->buff);
+    size_t len = utarray_len(&sayura->buff);
+    size_t in_l = len * sizeof(uint32_t);
+    size_t out_l = len * UTF8_MAX_LENGTH + 1;
+    char *outbuf = fcitx_utils_malloc0(out_l);
+    char *str = outbuf;
+
+    size_t count = iconv(sayura->cd, &inbuf, &in_l, &outbuf, &out_l);
+
+    eprintf("%s %d\n", str, (int)count);
+
+    if (count == (size_t)-1) {
+        /* Should never fail. */
+        FcitxLog(FATAL, "Error when converting buffer string from UTF-32"
+                 "to UTF-8.");
+        free(str);
+        return NULL;
+    }
+    return str;
+}
+
+static void
+FcitxSayuraCommitPreedit(FcitxSayura *sayura)
+{
+    char *str = FcitxSayuraBufferToUTF8(sayura);
+    utarray_clear(&sayura->buff);
+    FcitxInstanceCommitString(sayura->owner,
+                              FcitxInstanceGetCurrentIC(sayura->owner), str);
+    free(str);
 }
 
 static int
@@ -263,7 +299,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
         case FcitxKey_W:
             val = 0x0dca;
             utarray_push_back(&sayura->buff, &val);
-            /* TODO: commit preedit */
+            FcitxSayuraCommitPreedit(sayura);
             val = 0x200d;
             utarray_push_back(&sayura->buff, &val);
             return IRV_DISPLAY_CANDWORDS;
@@ -288,7 +324,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
             utarray_push_back(&sayura->buff, &val);
             val = 0x200d;
             utarray_push_back(&sayura->buff, &val);
-            /* TODO: commit preedit */
+            FcitxSayuraCommitPreedit(sayura);
             val = 0x0dbb;
             utarray_push_back(&sayura->buff, &val);
             return IRV_DISPLAY_CANDWORDS;
@@ -297,7 +333,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
             utarray_push_back(&sayura->buff, &val);
             val = 0x200d;
             utarray_push_back(&sayura->buff, &val);
-            /* TODO: commit preedit */
+            FcitxSayuraCommitPreedit(sayura);
             val = 0x0dba;
             utarray_push_back(&sayura->buff, &val);
             return IRV_DISPLAY_CANDWORDS;
@@ -306,7 +342,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
         }
     }
 
-    /* TODO: commit preedit */
+    FcitxSayuraCommitPreedit(sayura);
     utarray_push_back(&sayura->buff, &consonant.character);
     return IRV_DISPLAY_CANDWORDS;
 }
@@ -319,12 +355,13 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
     __pfunc__();
     eprintf("sym: %d, state: %d\n", sym, state);
 
+    sayura->hack = 0;
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_ESCAPE))
         return IRV_FLAG_RESET_INPUT;
 
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_BACKSPACE)) {
         if (utarray_len(&sayura->buff) > 0) {
-            /* TODO: Remove the last charactor. */
+            utarray_pop_back(&sayura->buff);
             return IRV_DISPLAY_CANDWORDS;
         }
         return IRV_TO_PROCESS;
@@ -332,8 +369,8 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
 
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_SPACE)) {
         if (utarray_len(&sayura->buff) > 0) {
-            /* TODO: Commit preedit and return a correct value. */
-            return IRV_TO_PROCESS;
+            FcitxSayuraCommitPreedit(sayura);
+            return IRV_DISPLAY_CANDWORDS;
         }
         return IRV_TO_PROCESS;
     }
@@ -346,15 +383,38 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
     if (c >= 0)
         return FcitxSayuraHandleConsonantPressed(sayura, c);
 
-    /* Default? */
-    return IRV_TO_PROCESS;
+    FcitxSayuraCommitPreedit(sayura);
+    eprintf("hack set\n");
+    sayura->hack |= FCITX_SAYURA_HACK_FORWARD;
+    return IRV_DISPLAY_CANDWORDS;
 }
 
 static INPUT_RETURN_VALUE
 FcitxSayuraGetCandWords(void *arg)
 {
+    FcitxSayura* sayura = (FcitxSayura*) arg;
+    FcitxInputState *input = FcitxInstanceGetInputState(sayura->owner);
+    /* FcitxMessages *msgPreedit = FcitxInputStateGetPreedit(input); */
+    FcitxMessages *clientPreedit = FcitxInputStateGetClientPreedit(input);
     __pfunc__();
-    return IRV_TO_PROCESS;
+
+    //clean up window asap
+    FcitxInstanceCleanInputWindow(sayura->owner);
+
+    char *preedit = FcitxSayuraBufferToUTF8(sayura);
+    FcitxMessagesAddMessageAtLast(clientPreedit, MSG_INPUT, "%s", preedit);
+    //FcitxMessagesMessageConcatLast(clientPreedit, "a");
+    free(preedit);
+
+    INPUT_RETURN_VALUE ret = IRV_DISPLAY_CANDWORDS;
+    eprintf("hack=%d\n", sayura->hack);
+    if (sayura->hack & FCITX_SAYURA_HACK_FORWARD) {
+        eprintf("hack\n");
+        ret |= IRV_DONOT_PROCESS;
+    }
+
+    sayura->hack = 0;
+    return ret;
 }
 
 static void
