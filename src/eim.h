@@ -30,7 +30,7 @@
 
 typedef struct _FcitxSayura {
     FcitxInstance* owner;
-    UT_array *buff;
+    UT_array buff;
     iconv_t cd;
 } FcitxSayura;
 

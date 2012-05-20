@@ -67,7 +67,7 @@ static const FcitxIMIFace sayura_iface = {
     .DoReleaseInput = NULL,
 };
 
-const UT_icd ucs4_icd = {
+static const UT_icd ucs4_icd = {
     sizeof(uint32_t),
     NULL,
     NULL,
@@ -75,12 +75,13 @@ const UT_icd ucs4_icd = {
 };
 
 
-struct {
+typedef struct {
     uint32_t character;
     uint32_t mahaprana;
     uint32_t sagngnaka;
     FcitxKeySym key;
-} consonents[] = {
+} FcitxSayuraConsonant;
+static const FcitxSayuraConsonant const consonants[] = {
     {0xda4, 0x00, 0x00, FcitxKey_z},
     {0xda5, 0x00, 0x00, FcitxKey_Z},
     {0xdc0, 0x00, 0x00, FcitxKey_w},
@@ -124,13 +125,14 @@ struct {
     {0, 0, 0, 0}
 };
 
-struct {
+typedef struct {
     uint32_t single0;
     uint32_t double0;
     uint32_t single1;
     uint32_t double1;
     FcitxKeySym key;
-} vowels[] = {
+} FcitxSayuraVowel;
+static const FcitxSayuraVowel vowels[] = {
     {0xd85, 0xd86, 0xdcf, 0xdcf, FcitxKey_a},
     {0xd87, 0xd88, 0xdd0, 0xdd1, FcitxKey_A},
     {0xd87, 0xd88, 0xdd0, 0xdd1, FcitxKey_q},
@@ -142,23 +144,20 @@ struct {
     {0xd96, 0x00, 0xdde, 0xddf, FcitxKey_O},
     {0xd8b, 0xd8c, 0xdd4, 0xdd6, FcitxKey_u},
     {0xd8d, 0xd8e, 0xdd8, 0xdf2, FcitxKey_U},
+    /* This one already exists in consonants[], not sure y it is also here.~ */
     {0xd8f, 0xd90, 0xd8f, 0xd90, FcitxKey_Z},
     {0, 0, 0, 0, 0}
 };
 
-
 #ifdef FCITX_SAYURA_DEBUG
-#  define __pfunc__() printf("%s\n", __func__)
+#  define eprintf(format, args...)                      \
+    fprintf(stderr, "\e[35m\e[1m"format"\e[0m", args)
 #else
-#  define __pfunc__()
+#  define eprintf(format, args...)
 #endif
 
-/**
- * @brief initialize the extra input method
- *
- * @param arg
- * @return successful or not
- **/
+#  define __pfunc__() eprintf("%s\n", __func__)
+
 static void*
 FcitxSayuraCreate(FcitxInstance *instance)
 {
@@ -170,8 +169,14 @@ FcitxSayuraCreate(FcitxInstance *instance)
     bindtextdomain("fcitx-sayura", LOCALEDIR);
 
     sayura->owner = instance;
-    utarray_new(sayura->buff, &ucs4_icd);
+    utarray_init(&sayura->buff, &ucs4_icd);
     sayura->cd = iconv_open("UTF-8", "UTF-32");
+    if (sayura->cd == (iconv_t)-1) {
+        /* not necessary but not likely either.~ */
+        utarray_done(&sayura->buff);
+        free(sayura);
+        return NULL;
+    }
 
     /* A structure larger than 63byte is copied, good job. ~~ */
     FcitxInstanceRegisterIMv2(instance, sayura,
@@ -185,18 +190,52 @@ FcitxSayuraDestroy(void *arg)
 {
     FcitxSayura *sayura = (FcitxSayura*)arg;
     __pfunc__();
+    if (!arg)
+        return;
     iconv_close(sayura->cd);
-    utarray_free(sayura->buff);
+    utarray_done(&sayura->buff);
     free(arg);
 }
 
+/**
+ * @brief initialize the extra input method
+ *
+ * @param arg
+ * @return successful or not
+ **/
 static boolean
 FcitxSayuraInit(void *arg)
 {
     FcitxSayura *sayura = (FcitxSayura*)arg;
     __pfunc__();
+    if (!arg)
+        return false;
     FcitxInstanceSetContext(sayura->owner, CONTEXT_IM_KEYBOARD_LAYOUT, "us");
     return true;
+}
+
+static int
+FcitxSayuraFindConsonantByKey(FcitxKeySym sym)
+{
+    int i;
+    for (i = 0;consonants[i].character;i++) {
+        if (consonants[i].key == sym)
+            return i;
+    }
+    return -1;
+}
+
+static INPUT_RETURN_VALUE
+FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
+{
+    const FcitxSayuraConsonant consonant = consonants[c];
+
+    if (utarray_len(&sayura->buff) == 0) {
+        utarray_push_back(&sayura->buff, &consonant.character);
+        return IRV_DISPLAY_CANDWORDS;
+    }
+
+    return IRV_TO_PROCESS;
 }
 
 static INPUT_RETURN_VALUE
@@ -205,34 +244,36 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
     FcitxSayura *sayura = (FcitxSayura*)arg;
     int c;
     __pfunc__();
+    eprintf("sym: %d, state: %d\n", sym, state);
 
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_ESCAPE))
         return IRV_FLAG_RESET_INPUT;
 
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_BACKSPACE)) {
-        if (utarray_len(sayura->buff) > 0) {
+        if (utarray_len(&sayura->buff) > 0) {
             /* TODO: Remove the last charactor. */
             return IRV_DISPLAY_CANDWORDS;
         }
-        return IRV_FLAG_BLOCK_FOLLOWING_PROCESS;
-    }
-
-    if (FcitxHotkeyIsHotKey(sym, state, FCITX_BACKSPACE)) {
-        if (utarray_len(sayura->buff) > 0) {
-            /* TODO: Remove the last charactor. */
-            return IRV_DISPLAY_CANDWORDS;
-        }
-        return IRV_FLAG_BLOCK_FOLLOWING_PROCESS;
+        return IRV_TO_PROCESS;
     }
 
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_SPACE)) {
-        if (utarray_len(sayura->buff) > 0) {
+        if (utarray_len(&sayura->buff) > 0) {
             /* TODO: Commit preedit and return a correct value. */
             return IRV_TO_PROCESS;
         }
         return IRV_TO_PROCESS;
     }
 
+    /* Hopefully this is the right thing to do~ */
+    if (state)
+        return IRV_TO_PROCESS;
+
+    c = FcitxSayuraFindConsonantByKey(sym);
+    if (c >= 0)
+        return FcitxSayuraHandleConsonantPressed(sayura, c);
+
+    /* Default? */
     return IRV_TO_PROCESS;
 }
 
@@ -248,5 +289,7 @@ FcitxSayuraReset(void *arg)
 {
     FcitxSayura *sayura = (FcitxSayura*)arg;
     __pfunc__();
-    utarray_clear(sayura->buff);
+    if (!arg)
+        return;
+    utarray_clear(&sayura->buff);
 }
