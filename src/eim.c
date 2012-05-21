@@ -74,8 +74,13 @@ static const UT_icd ucs4_icd = {
     NULL
 };
 
-#define ucs4_array_index(a, i) (*(uint32_t*)utarray_eltptr(a, i))
+#define ucs4_array_index(a, i)                                  \
+    ({uint32_t *p = (uint32_t*)utarray_eltptr(a, i);            \
+        p ? *p : 0;})
 
+#define ucs4_array_last(a)                                  \
+    ({uint32_t *p = (uint32_t*)utarray_back(a);            \
+        p ? *p : 0;})
 
 typedef struct {
     uint32_t character;
@@ -256,8 +261,19 @@ static int
 FcitxSayuraFindConsonantByKey(FcitxKeySym sym)
 {
     int i;
-    for (i = 0;consonants[i].character;i++) {
+    for (i = 0;consonants[i].key;i++) {
         if (consonants[i].key == sym)
+            return i;
+    }
+    return -1;
+}
+
+static int
+FcitxSayuraFindVowelByKey(FcitxKeySym sym)
+{
+    int i;
+    for (i = 0;vowels[i].key;i++) {
+        if (vowels[i].key == sym)
             return i;
     }
     return -1;
@@ -267,13 +283,19 @@ static int
 FcitxSayuraFindConsonant(uint32_t c)
 {
     int i;
-    for (i = 0;consonants[i].character;i++) {
+    for (i = 0;consonants[i].key;i++) {
         if (consonants[i].character == c||
             consonants[i].mahaprana == c||
             consonants[i].sagngnaka == c)
             return i;
     }
     return -1;
+}
+
+static boolean
+FcitxSayuraIsConsonant(uint32_t c)
+{
+    return (c >= 0x0d9a) && (c <= 0x0dc6);
 }
 
 static INPUT_RETURN_VALUE
@@ -347,6 +369,37 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
     return IRV_DISPLAY_CANDWORDS;
 }
 
+
+static INPUT_RETURN_VALUE
+FcitxSayuraHandleVowelPressed(FcitxSayura *sayura, int c)
+{
+    const FcitxSayuraVowel vowel = vowels[c];
+    uint32_t c1 = 0;
+    uint32_t val = 0;
+
+    if (utarray_len(&sayura->buff) == 0) {
+        utarray_push_back(&sayura->buff, &vowel.single0);
+        return IRV_DISPLAY_CANDWORDS;
+    }
+
+    c1 = ucs4_array_last(&sayura->buff);
+
+    if (FcitxSayuraIsConsonant(c1)) {
+        utarray_push_back(&sayura->buff, &vowel.single1);
+    } else if (c1 == vowel.single0) {
+        utarray_pop_back(&sayura->buff);
+        utarray_push_back(&sayura->buff, &vowel.double0);
+    } else if (c1 == vowel.single1) {
+        utarray_pop_back(&sayura->buff);
+        utarray_push_back(&sayura->buff, &vowel.double1);
+    } else if ((c1 == 0x0d86 || c1 == 0x0d87) && c == 0x0) {
+        utarray_pop_back(&sayura->buff);
+        val = vowel.single0 + 1;
+        utarray_push_back(&sayura->buff, &val);
+    }
+    return IRV_DISPLAY_CANDWORDS;
+}
+
 static INPUT_RETURN_VALUE
 FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
 {
@@ -370,6 +423,8 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_SPACE)) {
         if (utarray_len(&sayura->buff) > 0) {
             FcitxSayuraCommitPreedit(sayura);
+            /* This is ibus-sayura's behavior */
+            sayura->hack |= FCITX_SAYURA_HACK_FORWARD;
             return IRV_DISPLAY_CANDWORDS;
         }
         return IRV_TO_PROCESS;
@@ -383,8 +438,11 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
     if (c >= 0)
         return FcitxSayuraHandleConsonantPressed(sayura, c);
 
+    c = FcitxSayuraFindVowelByKey(sym);
+    if (c >= 0)
+        return FcitxSayuraHandleVowelPressed(sayura, c);
+
     FcitxSayuraCommitPreedit(sayura);
-    eprintf("hack set\n");
     sayura->hack |= FCITX_SAYURA_HACK_FORWARD;
     return IRV_DISPLAY_CANDWORDS;
 }
@@ -407,11 +465,8 @@ FcitxSayuraGetCandWords(void *arg)
     free(preedit);
 
     INPUT_RETURN_VALUE ret = IRV_DISPLAY_CANDWORDS;
-    eprintf("hack=%d\n", sayura->hack);
-    if (sayura->hack & FCITX_SAYURA_HACK_FORWARD) {
-        eprintf("hack\n");
+    if (sayura->hack & FCITX_SAYURA_HACK_FORWARD)
         ret |= IRV_DONOT_PROCESS;
-    }
 
     sayura->hack = 0;
     return ret;
@@ -422,6 +477,7 @@ FcitxSayuraReset(void *arg)
 {
     FcitxSayura *sayura = (FcitxSayura*)arg;
     __pfunc__();
+    sayura->hack = 0;
     if (!arg)
         return;
     utarray_clear(&sayura->buff);
