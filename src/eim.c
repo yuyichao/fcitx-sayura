@@ -235,8 +235,6 @@ FcitxSayuraBufferToUTF8(FcitxSayura *sayura)
 
     size_t count = iconv(sayura->cd, &inbuf, &in_l, &outbuf, &out_l);
 
-    eprintf("%s %d\n", str, (int)count);
-
     if (count == (size_t)-1) {
         /* Should never fail. */
         FcitxLog(FATAL, "Error when converting buffer string from UTF-32"
@@ -329,7 +327,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
             if (!consonants[l1].mahaprana)
                 break;
             if (!utarray_len(&sayura->buff))
-                return IRV_DO_NOTHING;
+                return IRV_DISPLAY_CANDWORDS;
             utarray_pop_back(&sayura->buff);
             utarray_push_back(&sayura->buff, &consonants[l1].mahaprana);
             return IRV_DISPLAY_CANDWORDS;
@@ -337,7 +335,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
             if (!consonants[l1].sagngnaka)
                 break;
             if (!utarray_len(&sayura->buff))
-                return IRV_DO_NOTHING;
+                return IRV_DISPLAY_CANDWORDS;
             utarray_pop_back(&sayura->buff);
             utarray_push_back(&sayura->buff, &consonants[l1].sagngnaka);
             return IRV_DISPLAY_CANDWORDS;
@@ -452,16 +450,27 @@ FcitxSayuraGetCandWords(void *arg)
 {
     FcitxSayura* sayura = (FcitxSayura*) arg;
     FcitxInputState *input = FcitxInstanceGetInputState(sayura->owner);
-    /* FcitxMessages *msgPreedit = FcitxInputStateGetPreedit(input); */
+    FcitxMessages *msgPreedit = FcitxInputStateGetPreedit(input);
     FcitxMessages *clientPreedit = FcitxInputStateGetClientPreedit(input);
+    char *preedit = FcitxSayuraBufferToUTF8(sayura);
+    FcitxInputContext *ic = FcitxInstanceGetCurrentIC(sayura->owner);
+    FcitxProfile *profile = FcitxInstanceGetProfile(sayura->owner);
     __pfunc__();
 
-    //clean up window asap
     FcitxInstanceCleanInputWindow(sayura->owner);
 
-    char *preedit = FcitxSayuraBufferToUTF8(sayura);
-    FcitxMessagesAddMessageAtLast(clientPreedit, MSG_INPUT, "%s", preedit);
-    //FcitxMessagesMessageConcatLast(clientPreedit, "a");
+    if (strlen(preedit)) {
+        if (ic && ((ic->contextCaps & CAPACITY_PREEDIT) == 0 ||
+                   !profile->bUsePreedit)) {
+            FcitxMessagesAddMessageAtLast(msgPreedit, MSG_INPUT,
+                                          "%s", preedit);
+            eprintf("preedit: %s\n", preedit);
+        } else {
+            FcitxMessagesAddMessageAtLast(clientPreedit, MSG_INPUT,
+                                          "%s", preedit);
+            eprintf("clientpreedit: %s\n", preedit);
+        }
+    }
     free(preedit);
 
     INPUT_RETURN_VALUE ret = IRV_DISPLAY_CANDWORDS;
