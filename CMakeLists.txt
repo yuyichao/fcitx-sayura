@@ -43,3 +43,4 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/config.h.in"
 
 add_subdirectory(src)
 add_subdirectory(data)
+add_subdirectory(po)

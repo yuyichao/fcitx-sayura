@@ -1,7 +1,7 @@
 [Addon]
 Name=fcitx-sayura
-_GeneralName=Sayura
-_Comment=Sayura Input Method For Fcitx
+_GeneralName=Sinhala
+_Comment=Sayura Sinhala Input Method For Fcitx
 Category=InputMethod
 Enabled=True
 Library=fcitx-sayura.so
