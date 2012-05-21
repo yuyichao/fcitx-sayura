@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2012-05-21 13:10+0800\n"
-"PO-Revision-Date: 2012-05-21 13:11+0800\n"
+"POT-Creation-Date: 2012-05-21 13:18+0800\n"
+"PO-Revision-Date: 2012-05-21 13:19+0800\n"
 "Last-Translator: Weng Xuetian <wengxt@gmail.com>\n"
 "Language-Team: Chinese Simplified <kde-i18n-doc@kde.org>\n"
 "Language: zh_CN\n"
@@ -24,6 +24,8 @@ msgstr "Fcitx 的 Sayura 僧伽罗语输入法"
 #: /home/saber/Develop/fcitx-sayura/build/po/tmp/fcitx-sayura.conf.in.h:1
 #: /home/saber/Develop/fcitx-sayura/build/po/tmp/sayura.conf.in.h:1
 #: /home/saber/Develop/fcitx-sayura/build/po/../..//src/eim.c:191
-msgid "Sinhala"
-msgstr "僧伽罗语"
+msgid "Sinhala (Sayura)"
+msgstr "僧伽罗语 (Sayura)"
 
+#~ msgid "Sinhala"
+#~ msgstr "僧伽罗语 (Sayura)"

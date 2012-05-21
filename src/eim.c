@@ -188,7 +188,7 @@ FcitxSayuraCreate(FcitxInstance *instance)
 
     /* A structure larger than 63byte is copied, good job. ~~ */
     FcitxInstanceRegisterIMv2(instance, sayura,
-                              "sayura", _("Sinhala"), "sayura",
+                              "sayura", _("Sinhala (Sayura)"), "sayura",
                               sayura_iface, 1, "si");
     return sayura;
 }
