@@ -86,6 +86,18 @@ static const UT_icd ucs4_icd = {
     ({uint32_t *p = (uint32_t*)utarray_front(a);            \
         p ? *p : 0;})
 
+static void
+ucs4_array_push(UT_array *a, uint32_t v)
+{
+    utarray_push_back(a, &v);
+}
+
+static void
+ucs4_array_pop(UT_array *a)
+{
+    utarray_pop_back(a);
+}
+
 typedef struct {
     uint32_t character;
     uint32_t mahaprana;
@@ -303,10 +315,9 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
 {
     const FcitxSayuraConsonant consonant = consonants[c];
     int l1 = 0;
-    uint32_t val = 0;
 
     if (utarray_len(&sayura->buff) == 0) {
-        utarray_push_back(&sayura->buff, &consonant.character);
+        ucs4_array_push(&sayura->buff, consonant.character);
         return;
     }
 
@@ -315,49 +326,40 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
     if (l1 >= 0) {
         switch (consonant.key) {
         case FcitxKey_w:
-            val = 0x0dca;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x0dca);
             return;
         case FcitxKey_W:
-            val = 0x0dca;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x0dca);
             FcitxSayuraCommitPreedit(sayura);
-            val = 0x200d;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x200d);
             return;
         case FcitxKey_H:
             if (!consonants[l1].mahaprana)
                 break;
             if (!utarray_len(&sayura->buff))
                 return;
-            utarray_pop_back(&sayura->buff);
-            utarray_push_back(&sayura->buff, &consonants[l1].mahaprana);
+            ucs4_array_pop(&sayura->buff);
+            ucs4_array_push(&sayura->buff, consonants[l1].mahaprana);
             return;
         case FcitxKey_G:
             if (!consonants[l1].sagngnaka)
                 break;
             if (!utarray_len(&sayura->buff))
                 return;
-            utarray_pop_back(&sayura->buff);
-            utarray_push_back(&sayura->buff, &consonants[l1].sagngnaka);
+            ucs4_array_pop(&sayura->buff);
+            ucs4_array_push(&sayura->buff, consonants[l1].sagngnaka);
             return;
         case FcitxKey_R:
-            val = 0x0dca;
-            utarray_push_back(&sayura->buff, &val);
-            val = 0x200d;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x0dca);
+            ucs4_array_push(&sayura->buff, 0x200d);
             FcitxSayuraCommitPreedit(sayura);
-            val = 0x0dbb;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x0dbb);
             return;
         case FcitxKey_Y:
-            val = 0x0dca;
-            utarray_push_back(&sayura->buff, &val);
-            val = 0x200d;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x0dca);
+            ucs4_array_push(&sayura->buff, 0x200d);
             FcitxSayuraCommitPreedit(sayura);
-            val = 0x0dba;
-            utarray_push_back(&sayura->buff, &val);
+            ucs4_array_push(&sayura->buff, 0x0dba);
             return;
         default:
             break;
@@ -365,7 +367,7 @@ FcitxSayuraHandleConsonantPressed(FcitxSayura *sayura, int c)
     }
 
     FcitxSayuraCommitPreedit(sayura);
-    utarray_push_back(&sayura->buff, &consonant.character);
+    ucs4_array_push(&sayura->buff, consonant.character);
     return;
 }
 
@@ -375,27 +377,25 @@ FcitxSayuraHandleVowelPressed(FcitxSayura *sayura, int c)
 {
     const FcitxSayuraVowel vowel = vowels[c];
     uint32_t c1 = 0;
-    uint32_t val = 0;
 
     if (utarray_len(&sayura->buff) == 0) {
-        utarray_push_back(&sayura->buff, &vowel.single0);
+        ucs4_array_push(&sayura->buff, vowel.single0);
         return;
     }
 
     c1 = ucs4_array_last(&sayura->buff);
 
     if (FcitxSayuraIsConsonant(c1)) {
-        utarray_push_back(&sayura->buff, &vowel.single1);
+        ucs4_array_push(&sayura->buff, vowel.single1);
     } else if (c1 == vowel.single0) {
-        utarray_pop_back(&sayura->buff);
-        utarray_push_back(&sayura->buff, &vowel.double0);
+        ucs4_array_pop(&sayura->buff);
+        ucs4_array_push(&sayura->buff, vowel.double0);
     } else if (c1 == vowel.single1) {
-        utarray_pop_back(&sayura->buff);
-        utarray_push_back(&sayura->buff, &vowel.double1);
+        ucs4_array_pop(&sayura->buff);
+        ucs4_array_push(&sayura->buff, vowel.double1);
     } else if ((c1 == 0x0d86 || c1 == 0x0d87) && c == 0x0) {
-        utarray_pop_back(&sayura->buff);
-        val = vowel.single0 + 1;
-        utarray_push_back(&sayura->buff, &val);
+        ucs4_array_pop(&sayura->buff);
+        ucs4_array_push(&sayura->buff, vowel.single0 + 1);
     }
     return;
 }
@@ -414,7 +414,7 @@ FcitxSayuraDoInput(void *arg, FcitxKeySym sym, unsigned int state)
 
     if (FcitxHotkeyIsHotKey(sym, state, FCITX_BACKSPACE)) {
         if (utarray_len(&sayura->buff) > 0) {
-            utarray_pop_back(&sayura->buff);
+            ucs4_array_pop(&sayura->buff);
             return IRV_DISPLAY_CANDWORDS;
         }
         return IRV_TO_PROCESS;
