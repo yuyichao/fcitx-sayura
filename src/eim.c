@@ -455,19 +455,22 @@ FcitxSayuraGetCandWords(void *arg)
     char *preedit = FcitxSayuraBufferToUTF8(sayura);
     FcitxInputContext *ic = FcitxInstanceGetCurrentIC(sayura->owner);
     FcitxProfile *profile = FcitxInstanceGetProfile(sayura->owner);
+    int l = strlen(preedit);
     __pfunc__();
 
     FcitxInstanceCleanInputWindow(sayura->owner);
 
-    if (strlen(preedit)) {
+    if (l) {
         if (ic && ((ic->contextCaps & CAPACITY_PREEDIT) == 0 ||
                    !profile->bUsePreedit)) {
             FcitxMessagesAddMessageAtLast(msgPreedit, MSG_INPUT,
                                           "%s", preedit);
+            FcitxInputStateSetCursorPos(input, l);
             eprintf("preedit: %s\n", preedit);
         } else {
             FcitxMessagesAddMessageAtLast(clientPreedit, MSG_INPUT,
                                           "%s", preedit);
+            FcitxInputStateSetClientCursorPos(input, l);
             eprintf("clientpreedit: %s\n", preedit);
         }
     }
